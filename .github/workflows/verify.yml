@@ -1,0 +1,54 @@
+# ADD:TO MAKE WORK - this workflow is not scaffolded by Kubebuilder.
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  verify:
+    permissions:
+      contents: read
+    name: Run on Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      # Fails if the CRDs, RBAC, webhook or state metrics configuration differ from what controller-gen
+      # (built from the pull request, see the Makefile) generates from the markers.
+      - name: Verify that the generated files are up to date
+        run: make verify-generated
+
+      - name: Build the kustomize output of the default scaffold
+        run: |
+          make kustomize
+          bin/kustomize build config/default > /tmp/default.yaml
+          grep -q 'custom-resource-state-config-file' /tmp/default.yaml
+
+      - name: Build the kustomize output with all options enabled
+        run: |
+          hack/all-options.sh enable
+          bin/kustomize build config/default > /tmp/all-options.yaml
+          hack/all-options.sh restore
+          grep -q 'state-metrics-monitor' /tmp/all-options.yaml
+          git diff --exit-code -- config
+
+      - name: Verify that the state metrics configuration of the Helm chart is up to date
+        run: make verify-helm-chart
+
+      - name: Render the Helm chart
+        run: |
+          make helm
+          bin/helm lint dist/chart
+          bin/helm template test-kubemetrics dist/chart --namespace test-kubemetrics-system > /tmp/chart.yaml
+          grep -q 'custom-resource-state-config-file' /tmp/chart.yaml

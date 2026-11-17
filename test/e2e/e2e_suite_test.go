@@ -36,6 +36,9 @@ var (
 	managerImage = "example.com/test-kubemetrics:v0.0.1"
 	// shouldCleanupCertManager tracks whether CertManager was installed by this suite.
 	shouldCleanupCertManager = false
+	// ADD:TO MAKE WORK - shouldCleanupServiceMonitorCRD tracks whether the ServiceMonitor CRD was installed
+	// by this suite.
+	shouldCleanupServiceMonitorCRD = false
 )
 
 // TestE2E runs the e2e test suite to validate the solution in an isolated environment.
@@ -51,6 +54,9 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	// ADD:TO MAKE WORK - fail early for an unknown E2E_PROFILE.
+	_ = e2eProfile()
+
 	By("building the manager image")
 	cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", managerImage))
 	_, err := utils.Run(cmd)
@@ -64,11 +70,80 @@ var _ = BeforeSuite(func() {
 
 	configureKubectlKubeRC()
 	setupCertManager()
+	// ADD:TO MAKE WORK - the ServiceMonitors are only enabled with the all-options and helm profiles.
+	if e2eProfile() != profileDefault {
+		setupServiceMonitorCRD()
+	}
 })
 
 var _ = AfterSuite(func() {
+	// ADD:TO MAKE WORK - no-op if the ServiceMonitor CRD was not installed by this suite.
+	teardownServiceMonitorCRD()
 	teardownCertManager()
 })
+
+// ADD:TO MAKE WORK - the profiles and the ServiceMonitor CRD setup below are not scaffolded by Kubebuilder.
+
+// The e2e profiles, selected with the E2E_PROFILE environment variable (see the Makefile).
+const (
+	// profileDefault deploys the default scaffold of config/default with kustomize.
+	profileDefault = "default"
+	// profileAllOptions deploys config/default with all options enabled (hack/all-options.sh) with kustomize.
+	profileAllOptions = "all-options"
+	// profileHelm deploys the Helm chart of dist/chart, which is generated with all options enabled.
+	profileHelm = "helm"
+)
+
+const (
+	serviceMonitorCRDName = "servicemonitors.monitoring.coreos.com"
+	serviceMonitorCRDURL  = "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/" +
+		"v0.86.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml"
+)
+
+// e2eProfile returns the profile the e2e tests run with.
+func e2eProfile() string {
+	switch profile := os.Getenv("E2E_PROFILE"); profile {
+	case "", profileDefault:
+		return profileDefault
+	case profileAllOptions, profileHelm:
+		return profile
+	default:
+		panic(fmt.Sprintf("unknown E2E_PROFILE %q", profile))
+	}
+}
+
+// setupServiceMonitorCRD installs the ServiceMonitor CRD of the Prometheus Operator if it is not present.
+// It is required as config/prometheus and the ServiceMonitor of config/state-metrics are enabled.
+func setupServiceMonitorCRD() {
+	By("checking if the ServiceMonitor CRD is already installed")
+	cmd := exec.Command("kubectl", "get", "crd", serviceMonitorCRDName)
+	if _, err := utils.Run(cmd); err == nil {
+		_, _ = fmt.Fprintf(GinkgoWriter, "ServiceMonitor CRD is already installed. Skipping installation.\n")
+		return
+	}
+
+	shouldCleanupServiceMonitorCRD = true
+
+	By("installing the ServiceMonitor CRD")
+	cmd = exec.Command("kubectl", "apply", "--server-side", "-f", serviceMonitorCRDURL)
+	_, err := utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to install the ServiceMonitor CRD")
+
+	cmd = exec.Command("kubectl", "wait", "--for=condition=Established", "crd", serviceMonitorCRDName, "--timeout=1m")
+	_, err = utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "ServiceMonitor CRD is not established")
+}
+
+// teardownServiceMonitorCRD removes the ServiceMonitor CRD if it was installed by setupServiceMonitorCRD.
+func teardownServiceMonitorCRD() {
+	if !shouldCleanupServiceMonitorCRD {
+		return
+	}
+
+	By("uninstalling the ServiceMonitor CRD")
+	cmd := exec.Command("kubectl", "delete", "--ignore-not-found", "-f", serviceMonitorCRDURL)
+	_, _ = utils.Run(cmd)
+}
 
 // Disable kubectl kuberc by default for test isolation.
 // This prevents local kubectl configurations from affecting test behavior.

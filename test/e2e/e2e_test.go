@@ -52,6 +52,11 @@ var _ = Describe("Manager", Ordered, func() {
 	// enforce the restricted security policy to the namespace, installing CRDs,
 	// and deploying the controller.
 	BeforeAll(func() {
+		// ADD:TO MAKE WORK - the Helm installation is verified by the "Helm chart" specs.
+		if e2eProfile() == profileHelm {
+			Skip("the kustomize installation is not verified with the helm profile")
+		}
+
 		By("creating manager namespace")
 		cmd := exec.Command("kubectl", "create", "ns", namespace)
 		_, err := utils.Run(cmd)
@@ -62,6 +67,13 @@ var _ = Describe("Manager", Ordered, func() {
 			"pod-security.kubernetes.io/enforce=restricted")
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to label namespace with restricted policy")
+
+		// ADD:TO MAKE WORK - only needed with the all-options profile.
+		// config/network-policy only allows pods of namespaces with this label to access the metrics endpoint.
+		By("labeling the namespace to allow access to the metrics endpoint")
+		cmd = exec.Command("kubectl", "label", "--overwrite", "ns", namespace, "metrics=enabled")
+		_, err = utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred(), "Failed to label namespace with metrics=enabled")
 
 		By("installing CRDs")
 		cmd = exec.Command("make", "install")
@@ -77,8 +89,19 @@ var _ = Describe("Manager", Ordered, func() {
 	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
 	// and deleting the namespace.
 	AfterAll(func() {
+		// ADD:TO MAKE WORK - nothing was deployed with the helm profile.
+		if e2eProfile() == profileHelm {
+			return
+		}
+
 		By("cleaning up the curl pod for metrics")
 		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
+		_, _ = utils.Run(cmd)
+
+		// ADD:TO MAKE WORK - the scaffold never deletes the ClusterRoleBinding created by the metrics spec, so
+		// the spec fails with "already exists" when the Kind cluster is reused, e.g. after a failed run.
+		By("removing the ClusterRoleBinding for the metrics")
+		cmd = exec.Command("kubectl", "delete", "clusterrolebinding", metricsRoleBindingName, "--ignore-not-found")
 		_, _ = utils.Run(cmd)
 
 		By("undeploying the controller-manager")
@@ -368,6 +391,15 @@ var _ = Describe("Manager", Ordered, func() {
 		//    strings.ToLower(<Kind>),
 		// ))
 	})
+
+	// ADD:TO MAKE WORK - the contexts below are not scaffolded by Kubebuilder.
+	Context("All options", func() {
+		It("should have all the options of the kustomize scaffold enabled", allOptionsSpec)
+	})
+
+	// Verifies that kube-state-metrics, deployed by config/state-metrics with the configuration generated
+	// by controller-gen, exposes the metrics of the Captains.
+	Context("State metrics", Ordered, stateMetricsSpecs)
 })
 
 // serviceAccountToken returns a token for the specified service account in the given namespace.

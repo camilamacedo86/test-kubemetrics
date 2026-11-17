@@ -66,13 +66,14 @@ jobs:
             --wait \
             --timeout 300s
 
-# TODO: Uncomment if Prometheus is enabled
-#      - name: Install Prometheus Operator CRDs
-#        run: |
-#          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-#          helm repo update
-#          helm install prometheus-crds prometheus-community/prometheus-operator-crds \
-#            --version "${PROMETHEUS_OPERATOR_CRDS_VERSION}"
+      # ADD:TO MAKE WORK - uncommented from the scaffold: the chart is generated with all options enabled
+      # ("make helm-chart"), so it has the ServiceMonitors of the manager and of kube-state-metrics.
+      - name: Install Prometheus Operator CRDs
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm install prometheus-crds prometheus-community/prometheus-operator-crds \
+            --version "${PROMETHEUS_OPERATOR_CRDS_VERSION}"
 
       - name: Deploy manager via Helm
         run: |
@@ -81,3 +82,21 @@ jobs:
       - name: Check Helm release status
         run: |
           make helm-status
+
+      # ADD:TO MAKE WORK - verify that kube-state-metrics of the chart exposes the metrics of a Captain.
+      - name: Verify the custom resource state metrics
+        run: |
+          kubectl rollout status deployment/test-kubemetrics-state-metrics -n test-kubemetrics-system --timeout=3m
+          for i in $(seq 1 30); do
+            # Retried: the webhooks may not serve with the certificate of cert-manager yet.
+            kubectl apply -f config/samples/crew_v1_captain.yaml || true
+            metrics="$(kubectl get --raw \
+              /api/v1/namespaces/test-kubemetrics-system/services/test-kubemetrics-state-metrics-service:http-metrics/proxy/metrics || true)"
+            if echo "$metrics" | grep -E '^captain_spec_replicas\{.*name="captain-sample".*\} 2$'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "$metrics"
+          echo "captain_spec_replicas of captain-sample not found in the metrics of kube-state-metrics"
+          exit 1

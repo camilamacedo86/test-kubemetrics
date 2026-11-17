@@ -20,7 +20,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
+
 	crewv1 "github.com/camilamacedo86/test-kubemetrics/api/v1"
+	crewv2 "github.com/camilamacedo86/test-kubemetrics/api/v2"
 	// TODO (user): Add any additional imports if needed
 )
 
@@ -47,50 +51,57 @@ var _ = Describe("Captain Webhook", func() {
 		// TODO (user): Add any teardown logic common to all tests
 	})
 
+	// ADD:TO MAKE WORK - tests of the implementation of the webhooks.
 	Context("When creating Captain under Defaulting Webhook", func() {
-		// TODO (user): Add logic for defaulting webhooks
-		// Example:
-		// It("Should apply defaults when a required field is empty", func() {
-		//     By("simulating a scenario where defaults should be applied")
-		//     obj.SomeFieldWithDefault = ""
-		//     By("calling the Default method to apply defaults")
-		//     defaulter.Default(ctx, obj)
-		//     By("checking that the default values are set")
-		//     Expect(obj.SomeFieldWithDefault).To(Equal("default_value"))
-		// })
+		It("Should apply defaults when the fields are empty", func() {
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(obj.Spec.Replicas).To(HaveValue(Equal(DefaultReplicas)))
+			Expect(obj.Spec.Rank).To(Equal(DefaultRank))
+		})
+
+		It("Should not overwrite the fields which are set", func() {
+			obj.Spec.Replicas = ptr.To[int32](3)
+			obj.Spec.Rank = "Admiral"
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(obj.Spec.Replicas).To(HaveValue(Equal(int32(3))))
+			Expect(obj.Spec.Rank).To(Equal("Admiral"))
+		})
 	})
 
 	Context("When creating or updating Captain under Validating Webhook", func() {
-		// TODO (user): Add logic for validating webhooks
-		// Example:
-		// It("Should deny creation if a required field is missing", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = ""
-		//     Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
-		// })
-		//
-		// It("Should admit creation if all required fields are present", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = "valid_value"
-		//     Expect(validator.ValidateCreate(ctx, obj)).To(BeNil())
-		// })
-		//
-		// It("Should validate updates correctly", func() {
-		//     By("simulating a valid update scenario")
-		//     oldObj.SomeRequiredField = "updated_value"
-		//     obj.SomeRequiredField = "updated_value"
-		//     Expect(validator.ValidateUpdate(ctx, oldObj, obj)).To(BeNil())
-		// })
+		It("Should deny creation and update if the value is out of range", func() {
+			obj.Spec.Replicas = ptr.To[int32](10)
+			Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
+			Expect(validator.ValidateUpdate(ctx, oldObj, obj)).Error().To(HaveOccurred())
+		})
+
+		It("Should admit creation and update if the value is in range", func() {
+			obj.Spec.Replicas = ptr.To[int32](5)
+			Expect(validator.ValidateCreate(ctx, obj)).Error().NotTo(HaveOccurred())
+			Expect(validator.ValidateUpdate(ctx, oldObj, obj)).Error().NotTo(HaveOccurred())
+		})
 	})
 
 	Context("When creating Captain under Conversion Webhook", func() {
-		// TODO (user): Add logic to convert the object to the desired version and verify the conversion
-		// Example:
-		// It("Should convert the object correctly", func() {
-		//     convertedObj := &crewv1.Captain{}
-		//     Expect(obj.ConvertTo(convertedObj)).To(Succeed())
-		//     Expect(convertedObj).ToNot(BeNil())
-		// })
-	})
+		It("Should convert the object from the spoke (v2) to the hub (v1) and back", func() {
+			spoke := &crewv2.Captain{
+				ObjectMeta: metav1.ObjectMeta{Name: "captain", Namespace: "default"},
+				Spec:       crewv2.CaptainSpec{Size: ptr.To[int32](3), Rank: "Admiral", Tags: []string{"brave"}},
+				Status:     crewv2.CaptainStatus{Phase: "Ready", ReadySize: ptr.To[int32](2)},
+			}
 
+			hub := &crewv1.Captain{}
+			Expect(spoke.ConvertTo(hub)).To(Succeed())
+			Expect(hub.Name).To(Equal("captain"))
+			Expect(hub.Spec.Replicas).To(HaveValue(Equal(int32(3))))
+			Expect(hub.Spec.Rank).To(Equal("Admiral"))
+			Expect(hub.Spec.Tags).To(Equal([]string{"brave"}))
+			Expect(hub.Status.Phase).To(Equal("Ready"))
+			Expect(hub.Status.ReadyReplicas).To(HaveValue(Equal(int32(2))))
+
+			converted := &crewv2.Captain{}
+			Expect(converted.ConvertFrom(hub)).To(Succeed())
+			Expect(converted).To(Equal(spoke))
+		})
+	})
 })

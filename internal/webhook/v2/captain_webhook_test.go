@@ -20,6 +20,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/utils/ptr"
+
 	crewv2 "github.com/camilamacedo86/test-kubemetrics/api/v2"
 	// TODO (user): Add any additional imports if needed
 )
@@ -47,40 +49,34 @@ var _ = Describe("Captain Webhook", func() {
 		// TODO (user): Add any teardown logic common to all tests
 	})
 
+	// ADD:TO MAKE WORK - tests of the implementation of the webhooks.
 	Context("When creating Captain under Defaulting Webhook", func() {
-		// TODO (user): Add logic for defaulting webhooks
-		// Example:
-		// It("Should apply defaults when a required field is empty", func() {
-		//     By("simulating a scenario where defaults should be applied")
-		//     obj.SomeFieldWithDefault = ""
-		//     By("calling the Default method to apply defaults")
-		//     defaulter.Default(ctx, obj)
-		//     By("checking that the default values are set")
-		//     Expect(obj.SomeFieldWithDefault).To(Equal("default_value"))
-		// })
+		It("Should apply defaults when the fields are empty", func() {
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(obj.Spec.Size).To(HaveValue(Equal(DefaultSize)))
+			Expect(obj.Spec.Rank).To(Equal(DefaultRank))
+		})
+
+		It("Should not overwrite the fields which are set", func() {
+			obj.Spec.Size = ptr.To[int32](3)
+			obj.Spec.Rank = "Admiral"
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(obj.Spec.Size).To(HaveValue(Equal(int32(3))))
+			Expect(obj.Spec.Rank).To(Equal("Admiral"))
+		})
 	})
 
 	Context("When creating or updating Captain under Validating Webhook", func() {
-		// TODO (user): Add logic for validating webhooks
-		// Example:
-		// It("Should deny creation if a required field is missing", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = ""
-		//     Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
-		// })
-		//
-		// It("Should admit creation if all required fields are present", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = "valid_value"
-		//     Expect(validator.ValidateCreate(ctx, obj)).To(BeNil())
-		// })
-		//
-		// It("Should validate updates correctly", func() {
-		//     By("simulating a valid update scenario")
-		//     oldObj.SomeRequiredField = "updated_value"
-		//     obj.SomeRequiredField = "updated_value"
-		//     Expect(validator.ValidateUpdate(ctx, oldObj, obj)).To(BeNil())
-		// })
-	})
+		It("Should deny creation and update if the value is out of range", func() {
+			obj.Spec.Size = ptr.To[int32](10)
+			Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
+			Expect(validator.ValidateUpdate(ctx, oldObj, obj)).Error().To(HaveOccurred())
+		})
 
+		It("Should admit creation and update if the value is in range", func() {
+			obj.Spec.Size = ptr.To[int32](5)
+			Expect(validator.ValidateCreate(ctx, obj)).Error().NotTo(HaveOccurred())
+			Expect(validator.ValidateUpdate(ctx, oldObj, obj)).Error().NotTo(HaveOccurred())
+		})
+	})
 })
