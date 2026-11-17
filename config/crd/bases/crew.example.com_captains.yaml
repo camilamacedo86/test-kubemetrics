@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.23.0
+    controller-gen.kubebuilder.io/version: v0.0.0-20261117082336-461cc2474d75
   name: captains.crew.example.com
 spec:
   group: crew.example.com
@@ -39,25 +39,31 @@ spec:
           spec:
             description: spec defines the desired state of Captain
             properties:
-              foo:
-                description: foo is an example field of Captain. Edit captain_types.go
-                  to remove/update
+              rank:
+                description: rank is the rank of the captain. Defaulted to "Commander"
+                  by the defaulting webhook.
+                enum:
+                - Commander
+                - Admiral
                 type: string
+              replicas:
+                description: replicas is the desired number of crew members. Defaulted
+                  to 1 by the defaulting webhook.
+                format: int32
+                type: integer
+              tags:
+                description: tags are free-form tags of the captain.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: set
             type: object
           status:
             description: status defines the observed state of Captain
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the Captain resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: conditions represent the current state of the Captain
+                  resource.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -116,6 +122,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              phase:
+                description: phase is the current phase of the captain.
+                type: string
+              readyReplicas:
+                description: readyReplicas is the number of ready crew members.
+                format: int32
+                type: integer
             type: object
         required:
         - spec
@@ -149,25 +162,30 @@ spec:
           spec:
             description: spec defines the desired state of Captain
             properties:
-              foo:
-                description: foo is an example field of Captain. Edit captain_types.go
-                  to remove/update
+              rank:
+                description: rank is the rank of the captain.
+                enum:
+                - Commander
+                - Admiral
                 type: string
+              size:
+                description: size is the desired number of crew members. It is named
+                  replicas in v1.
+                format: int32
+                type: integer
+              tags:
+                description: tags are free-form tags of the captain.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: set
             type: object
           status:
             description: status defines the observed state of Captain
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the Captain resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: conditions represent the current state of the Captain
+                  resource.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -226,6 +244,14 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              phase:
+                description: phase is the current phase of the captain.
+                type: string
+              readySize:
+                description: readySize is the number of ready crew members. It is
+                  named readyReplicas in v1.
+                format: int32
+                type: integer
             type: object
         required:
         - spec

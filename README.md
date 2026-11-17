@@ -1,4 +1,28 @@
 # test-kubemetrics
+
+<!-- ADD:TO MAKE WORK - this section is not scaffolded by Kubebuilder. -->
+**POC:** a project scaffolded with Kubebuilder (master) to verify that the `state-metrics-config` generator
+of controller-gen, proposed in [controller-tools#1043](https://github.com/kubernetes-sigs/controller-tools/pull/1043),
+works with the Kubebuilder scaffold.
+
+- The API `Captain` has two versions (`v1` hub and storage version, `v2` spoke) with defaulting, validation
+  and conversion webhooks, all scaffolded with `kubebuilder create api` and `kubebuilder create webhook`.
+- The `+k8s:controller-gen:metrics` markers are set on [api/v1/captain_types.go](api/v1/captain_types.go).
+- `make manifests` generates the kube-state-metrics configuration and its ClusterRole into
+  [config/state-metrics/bases](config/state-metrics/bases). controller-gen is built from the pull request.
+- [config/state-metrics](config/state-metrics) deploys kube-state-metrics with that configuration. It is added
+  to [config/default](config/default/kustomization.yaml).
+- Everything added on top of the scaffold is marked with `ADD:TO MAKE WORK`:
+  `grep -rn "ADD:TO MAKE WORK" --exclude-dir=bin --exclude-dir=dist .`
+
+| What | How | Verified by |
+|---|---|---|
+| Default scaffold + state metrics | `make deploy` | `make test-e2e` |
+| All options of the scaffold (Prometheus, NetworkPolicies, metrics certificates) + state metrics | `hack/all-options.sh enable` and `make deploy` | `make test-e2e-all-options` |
+| Helm chart (generated with all options, `make helm-chart`) | `make helm-deploy` | `make test-e2e-helm` |
+
+The three e2e profiles run in the [E2E Tests](.github/workflows/test-e2e.yml) workflow.
+
 // TODO(user): Add simple overview of use/purpose
 
 ## Description

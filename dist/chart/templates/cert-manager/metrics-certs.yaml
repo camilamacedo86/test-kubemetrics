@@ -11,8 +11,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   dnsNames:
-  - {{ include "test-kubemetrics.resourceName" (dict "suffix" "controller-manager-metrics-service" "context" $) }}.{{ include "test-kubemetrics.namespaceName" $ }}.svc
-  - {{ include "test-kubemetrics.resourceName" (dict "suffix" "controller-manager-metrics-service" "context" $) }}.{{ include "test-kubemetrics.namespaceName" $ }}.svc.cluster.local
+  - {{ include "test-kubemetrics.resourceName" (dict "suffix" "controller-manager-metrics-service" "context" $) }}.{{ .Release.Namespace }}.svc
+  - {{ include "test-kubemetrics.resourceName" (dict "suffix" "controller-manager-metrics-service" "context" $) }}.{{ .Release.Namespace }}.svc.cluster.local
   issuerRef:
     kind: Issuer
     name: {{ include "test-kubemetrics.resourceName" (dict "suffix" "selfsigned-issuer" "context" $) }}

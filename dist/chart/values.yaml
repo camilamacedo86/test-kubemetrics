@@ -181,7 +181,7 @@ webhook:
 ## Requires prometheus-operator to be installed in the cluster and metrics.enabled set to true.
 ##
 prometheus:
-  enabled: false
+  enabled: true
 
   ## Custom ServiceMonitor labels
   ##
@@ -195,5 +195,5 @@ prometheus:
 ## Enable to restrict ingress to the controller manager.
 ##
 networkPolicy:
-  enabled: false
+  enabled: true
 

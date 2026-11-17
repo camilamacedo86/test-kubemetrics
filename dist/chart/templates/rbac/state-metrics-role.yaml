@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    kube-state-metrics/aggregate-to-manager: "true"
+  name: {{ include "test-kubemetrics.resourceName" (dict "suffix" "state-metrics-role" "context" $) }}
+rules:
+- apiGroups:
+  - crew.example.com
+  resources:
+  - captains
+  verbs:
+  - get
+  - list
+  - watch

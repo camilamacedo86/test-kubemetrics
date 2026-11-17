@@ -30,9 +30,14 @@ func (src *Captain) ConvertTo(dstRaw conversion.Hub) error {
 	log.Printf("ConvertTo: Converting Captain from Spoke version v2 to Hub version v1;"+
 		"source: %s/%s, target: %s/%s", src.Namespace, src.Name, dst.Namespace, dst.Name)
 
-	// TODO(user): Implement conversion logic from v2 to v1
-	// Example: Copying Spec fields
-	// dst.Spec.Size = src.Spec.Replicas
+	// ADD:TO MAKE WORK - implementation of the conversion: spec.size and status.readySize of v2 are
+	// spec.replicas and status.readyReplicas of v1.
+	dst.Spec.Replicas = src.Spec.Size
+	dst.Spec.Rank = src.Spec.Rank
+	dst.Spec.Tags = src.Spec.Tags
+	dst.Status.Phase = src.Status.Phase
+	dst.Status.ReadyReplicas = src.Status.ReadySize
+	dst.Status.Conditions = src.Status.Conditions
 
 	// Copy ObjectMeta to preserve name, namespace, labels, etc.
 	dst.ObjectMeta = src.ObjectMeta
@@ -46,9 +51,13 @@ func (dst *Captain) ConvertFrom(srcRaw conversion.Hub) error {
 	log.Printf("ConvertFrom: Converting Captain from Hub version v1 to Spoke version v2;"+
 		"source: %s/%s, target: %s/%s", src.Namespace, src.Name, dst.Namespace, dst.Name)
 
-	// TODO(user): Implement conversion logic from v1 to v2
-	// Example: Copying Spec fields
-	// dst.Spec.Replicas = src.Spec.Size
+	// ADD:TO MAKE WORK - implementation of the conversion, see ConvertTo.
+	dst.Spec.Size = src.Spec.Replicas
+	dst.Spec.Rank = src.Spec.Rank
+	dst.Spec.Tags = src.Spec.Tags
+	dst.Status.Phase = src.Status.Phase
+	dst.Status.ReadySize = src.Status.ReadyReplicas
+	dst.Status.Conditions = src.Status.Conditions
 
 	// Copy ObjectMeta to preserve name, namespace, labels, etc.
 	dst.ObjectMeta = src.ObjectMeta

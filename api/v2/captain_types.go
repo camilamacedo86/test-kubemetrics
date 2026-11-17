@@ -24,40 +24,46 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// ADD:TO MAKE WORK - the fields of the spec and status: v2 names spec.replicas and status.readyReplicas of
+// v1 as spec.size and status.readySize, to have a conversion which is not a plain copy.
+
 // CaptainSpec defines the desired state of Captain
 type CaptainSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
-	// foo is an example field of Captain. Edit captain_types.go to remove/update
+	// size is the desired number of crew members. It is named replicas in v1.
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	Size *int32 `json:"size,omitempty"`
+
+	// rank is the rank of the captain.
+	// +kubebuilder:validation:Enum=Commander;Admiral
+	// +optional
+	Rank string `json:"rank,omitempty"`
+
+	// tags are free-form tags of the captain.
+	// +listType=set
+	// +optional
+	Tags []string `json:"tags,omitempty"`
 }
 
 // CaptainStatus defines the observed state of Captain.
 type CaptainStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// phase is the current phase of the captain.
+	// +optional
+	Phase string `json:"phase,omitempty"`
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+	// readySize is the number of ready crew members. It is named readyReplicas in v1.
+	// +optional
+	ReadySize *int32 `json:"readySize,omitempty"`
 
 	// conditions represent the current state of the Captain resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
+
+// ADD:TO MAKE WORK - v2 intentionally has no "+k8s:controller-gen:metrics" markers: the metrics are
+// generated for the hub and storage version (v1) only. kube-state-metrics reads the Captains as v1,
+// so the Captains created as v2 are exposed too.
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

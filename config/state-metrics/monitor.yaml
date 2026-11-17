@@ -1,0 +1,22 @@
+# ADD:TO MAKE WORK - not scaffolded by Kubebuilder, see kustomization.yaml.
+# Prometheus Monitor Service (custom resource state metrics)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: test-kubemetrics
+    app.kubernetes.io/component: state-metrics
+    app.kubernetes.io/managed-by: kustomize
+  name: state-metrics-monitor
+  namespace: system
+spec:
+  endpoints:
+  - path: /metrics
+    port: http-metrics
+    scheme: http
+    # Keep the labels exposed by kube-state-metrics instead of prefixing them with "exported_".
+    honorLabels: true
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: test-kubemetrics
+      app.kubernetes.io/component: state-metrics

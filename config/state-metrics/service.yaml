@@ -1,0 +1,19 @@
+# ADD:TO MAKE WORK - not scaffolded by Kubebuilder, see kustomization.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: test-kubemetrics
+    app.kubernetes.io/component: state-metrics
+    app.kubernetes.io/managed-by: kustomize
+  name: state-metrics-service
+  namespace: system
+spec:
+  ports:
+  - name: http-metrics
+    port: 8080
+    protocol: TCP
+    targetPort: http-metrics
+  selector:
+    app.kubernetes.io/name: test-kubemetrics
+    app.kubernetes.io/component: state-metrics

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: state-metrics
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ include "test-kubemetrics.name" . }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  name: {{ include "test-kubemetrics.resourceName" (dict "suffix" "state-metrics" "context" $) }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: state-metrics
+      app.kubernetes.io/name: {{ include "test-kubemetrics.name" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: state-metrics
+        app.kubernetes.io/name: {{ include "test-kubemetrics.name" . }}
+        helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+    spec:
+      containers:
+      - args:
+        - --custom-resource-state-only=true
+        - --custom-resource-state-config-file=/etc/state-metrics/metrics.yaml
+        - --port=8080
+        - --telemetry-port=8081
+        image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: http-metrics
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        name: kube-state-metrics
+        ports:
+        - containerPort: 8080
+          name: http-metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: telemetry
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: telemetry
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: 250m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /etc/state-metrics
+          name: config
+          readOnly: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: {{ include "test-kubemetrics.resourceName" (dict "suffix" "state-metrics" "context" $) }}
+      volumes:
+      - configMap:
+          name: {{ include "test-kubemetrics.resourceName" (dict "suffix" "state-metrics-config-dfftfmd79c" "context" $) }}
+        name: config

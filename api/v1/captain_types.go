@@ -24,44 +24,72 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// ADD:TO MAKE WORK - the fields of the spec and status replace the example field "foo" of the scaffold.
+
 // CaptainSpec defines the desired state of Captain
 type CaptainSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// ADD:TO MAKE WORK - "+k8s:controller-gen:metrics:gauge" on a field: gauge with the value of the field.
 
-	// foo is an example field of Captain. Edit captain_types.go to remove/update
+	// replicas is the desired number of crew members. Defaulted to 1 by the defaulting webhook.
+	// +k8s:controller-gen:metrics:gauge:name="spec_replicas",help="The desired number of crew members."
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	Replicas *int32 `json:"replicas,omitempty"`
+
+	// rank is the rank of the captain. Defaulted to "Commander" by the defaulting webhook.
+	// +kubebuilder:validation:Enum=Commander;Admiral
+	// +optional
+	Rank string `json:"rank,omitempty"`
+
+	// ADD:TO MAKE WORK - "+k8s:controller-gen:metrics:info" on a list: one info metric per element.
+
+	// tags are free-form tags of the captain.
+	// +k8s:controller-gen:metrics:info:name="tags",help="The tags of a captain.",labels={tag:"."}
+	// +listType=set
+	// +optional
+	Tags []string `json:"tags,omitempty"`
 }
 
 // CaptainStatus defines the observed state of Captain.
 type CaptainStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ADD:TO MAKE WORK - "+k8s:controller-gen:metrics:stateset": one metric per state, 1 for the current one.
 
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
+	// phase is the current phase of the captain.
+	// +k8s:controller-gen:metrics:stateset:name="status_phase",help="The phase of a captain.",states={"Pending","Ready","Failed"},labelName="phase"
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// ADD:TO MAKE WORK - gauge with missingAsZero: 0 is exposed while the status is not set yet.
+
+	// readyReplicas is the number of ready crew members.
+	// +k8s:controller-gen:metrics:gauge:name="status_ready_replicas",help="The number of ready crew members.",missingAsZero=true
+	// +optional
+	ReadyReplicas *int32 `json:"readyReplicas,omitempty"`
+
+	// ADD:TO MAKE WORK - stateset and gauge on a list of objects: "value" selects the field of each
+	// element, "labels" adds labels with the values of fields of each element.
 
 	// conditions represent the current state of the Captain resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
+	// +k8s:controller-gen:metrics:stateset:name="status_condition",help="The condition of a captain.",states={"True","False","Unknown"},labelName="status",value=".status",labels={"type":".type"}
+	// +k8s:controller-gen:metrics:gauge:name="status_condition_last_transition_time",help="The condition last transition time of a captain.",value=".lastTransitionTime",labels={"type":".type","status":".status"}
 	// +listType=map
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
+// ADD:TO MAKE WORK - the "+k8s:controller-gen:metrics" markers below:
+// - store: enables the generation of the state metrics configuration for this type. It is only set on v1
+//   (the hub and storage version), not on v2, otherwise every Captain is exposed once per version.
+// - label: labels added to all the metrics of the Captain.
+// - gauge on the type: metric with a path relative to the Captain.
+
 // +kubebuilder:object:root=true
 // +kubebuilder:storageversion
 // +kubebuilder:subresource:status
+// +k8s:controller-gen:metrics:store:namePrefix="captain"
+// +k8s:controller-gen:metrics:label:name="rank",value=".spec.rank"
+// +k8s:controller-gen:metrics:label:name="exported_namespace",value=".metadata.namespace"
+// +k8s:controller-gen:metrics:gauge:name="created",help="Unix creation timestamp.",path=".metadata.creationTimestamp"
 
 // Captain is the Schema for the captains API
 type Captain struct {

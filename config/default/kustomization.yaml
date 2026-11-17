@@ -31,6 +31,10 @@ resources:
 # Allow metrics traffic from pods in namespaces labeled 'metrics: enabled'.
 # Allow webhook traffic from all sources.
 #- ../network-policy
+# ADD:TO MAKE WORK - [STATE-METRICS] Deploy kube-state-metrics with the custom resource state configuration,
+# which controller-gen generates from the '+k8s:controller-gen:metrics' markers (see "make manifests"),
+# to expose metrics about the custom resources. This section is not scaffolded by Kubebuilder.
+- ../state-metrics
 
 # Uncomment the patches line if you enable Metrics
 patches:
@@ -39,19 +43,27 @@ patches:
 - path: manager_metrics_patch.yaml
   target:
     kind: Deployment
+    # ADD:TO MAKE WORK - the scaffold targets every Deployment. With config/state-metrics there is a second
+    # Deployment (kube-state-metrics), which must not get the arguments of the manager.
+    name: controller-manager
 
 # Uncomment the patches line if you enable Metrics and CertManager
 # [METRICS-WITH-CERTS] To enable metrics protected with certManager, uncomment the following line.
 # This patch will protect the metrics with certManager self-signed certs.
+# ADD:TO MAKE WORK - the scaffold targets every Deployment, "name: controller-manager" is added to not
+# patch the kube-state-metrics Deployment of config/state-metrics.
 #- path: cert_metrics_manager_patch.yaml
 #  target:
 #    kind: Deployment
+#    name: controller-manager
 
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in
 # crd/kustomization.yaml
 - path: manager_webhook_patch.yaml
   target:
     kind: Deployment
+    # ADD:TO MAKE WORK - see manager_metrics_patch.yaml above: do not patch the kube-state-metrics Deployment.
+    name: controller-manager
 
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER' prefix.
 # Uncomment the following replacements to add the cert-manager CA injection annotations

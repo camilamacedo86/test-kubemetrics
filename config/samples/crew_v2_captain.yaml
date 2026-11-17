@@ -4,6 +4,8 @@ metadata:
   labels:
     app.kubernetes.io/name: test-kubemetrics
     app.kubernetes.io/managed-by: kustomize
-  name: captain-sample
+  name: captain-sample-v2
 spec:
-  # TODO(user): Add fields here
+  # ADD:TO MAKE WORK - values for the fields added to the Captain.
+  size: 3
+  rank: Admiral

@@ -12,7 +12,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: test-kubemetrics-system/test-kubemetrics-serving-cert
-    controller-gen.kubebuilder.io/version: v0.23.0
+    controller-gen.kubebuilder.io/version: v0.0.0-20261117082336-461cc2474d75
   name: captains.crew.example.com
 spec:
   conversion:
@@ -58,25 +58,31 @@ spec:
           spec:
             description: spec defines the desired state of Captain
             properties:
-              foo:
-                description: foo is an example field of Captain. Edit captain_types.go
-                  to remove/update
+              rank:
+                description: rank is the rank of the captain. Defaulted to "Commander"
+                  by the defaulting webhook.
+                enum:
+                - Commander
+                - Admiral
                 type: string
+              replicas:
+                description: replicas is the desired number of crew members. Defaulted
+                  to 1 by the defaulting webhook.
+                format: int32
+                type: integer
+              tags:
+                description: tags are free-form tags of the captain.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: set
             type: object
           status:
             description: status defines the observed state of Captain
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the Captain resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: conditions represent the current state of the Captain
+                  resource.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -135,6 +141,13 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              phase:
+                description: phase is the current phase of the captain.
+                type: string
+              readyReplicas:
+                description: readyReplicas is the number of ready crew members.
+                format: int32
+                type: integer
             type: object
         required:
         - spec
@@ -168,25 +181,30 @@ spec:
           spec:
             description: spec defines the desired state of Captain
             properties:
-              foo:
-                description: foo is an example field of Captain. Edit captain_types.go
-                  to remove/update
+              rank:
+                description: rank is the rank of the captain.
+                enum:
+                - Commander
+                - Admiral
                 type: string
+              size:
+                description: size is the desired number of crew members. It is named
+                  replicas in v1.
+                format: int32
+                type: integer
+              tags:
+                description: tags are free-form tags of the captain.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: set
             type: object
           status:
             description: status defines the observed state of Captain
             properties:
               conditions:
-                description: |-
-                  conditions represent the current state of the Captain resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: conditions represent the current state of the Captain
+                  resource.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -245,6 +263,14 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              phase:
+                description: phase is the current phase of the captain.
+                type: string
+              readySize:
+                description: readySize is the number of ready crew members. It is
+                  named readyReplicas in v1.
+                format: int32
+                type: integer
             type: object
         required:
         - spec
@@ -261,6 +287,15 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: test-kubemetrics
   name: test-kubemetrics-controller-manager
+  namespace: test-kubemetrics-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-state-metrics
   namespace: test-kubemetrics-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -436,6 +471,39 @@ rules:
   - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-state-metrics-crd-reader-role
+rules:
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    kube-state-metrics/aggregate-to-manager: "true"
+  name: test-kubemetrics-state-metrics-role
+rules:
+- apiGroups:
+  - crew.example.com
+  resources:
+  - captains
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   labels:
@@ -481,6 +549,152 @@ subjects:
   name: test-kubemetrics-controller-manager
   namespace: test-kubemetrics-system
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-state-metrics-crd-reader-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: test-kubemetrics-state-metrics-crd-reader-role
+subjects:
+- kind: ServiceAccount
+  name: test-kubemetrics-state-metrics
+  namespace: test-kubemetrics-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-state-metrics-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: test-kubemetrics-state-metrics-role
+subjects:
+- kind: ServiceAccount
+  name: test-kubemetrics-state-metrics
+  namespace: test-kubemetrics-system
+---
+apiVersion: v1
+data:
+  metrics.yaml: |
+    # Generated by controller-gen
+    # Generated based on types for kube-state-metrics v2.20.0
+    ---
+    kind: CustomResourceStateMetrics
+    spec:
+      resources:
+      - groupVersionKind:
+          group: crew.example.com
+          kind: Captain
+          version: v1
+        labelsFromPath:
+          exported_namespace:
+          - metadata
+          - namespace
+          name:
+          - metadata
+          - name
+          rank:
+          - spec
+          - rank
+        metricNamePrefix: captain
+        metrics:
+        - each:
+            gauge:
+              path:
+              - metadata
+              - creationTimestamp
+            type: Gauge
+          help: Unix creation timestamp.
+          name: created
+        - each:
+            gauge:
+              path:
+              - spec
+              - replicas
+            type: Gauge
+          help: The desired number of crew members.
+          name: spec_replicas
+        - each:
+            stateSet:
+              labelName: status
+              labelsFromPath:
+                type:
+                - type
+              list:
+              - "True"
+              - "False"
+              - Unknown
+              path:
+              - status
+              - conditions
+              valueFrom:
+              - status
+            type: StateSet
+          help: The condition of a captain.
+          name: status_condition
+        - each:
+            gauge:
+              labelsFromPath:
+                status:
+                - status
+                type:
+                - type
+              path:
+              - status
+              - conditions
+              valueFrom:
+              - lastTransitionTime
+            type: Gauge
+          help: The condition last transition time of a captain.
+          name: status_condition_last_transition_time
+        - each:
+            stateSet:
+              labelName: phase
+              list:
+              - Pending
+              - Ready
+              - Failed
+              path:
+              - status
+              - phase
+            type: StateSet
+          help: The phase of a captain.
+          name: status_phase
+        - each:
+            gauge:
+              nilIsZero: true
+              path:
+              - status
+              - readyReplicas
+            type: Gauge
+          help: The number of ready crew members.
+          name: status_ready_replicas
+        - each:
+            info:
+              labelsFromPath:
+                tag: []
+              path:
+              - spec
+              - tags
+            type: Info
+          help: The tags of a captain.
+          name: tags
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-state-metrics-config-dfftfmd79c
+  namespace: test-kubemetrics-system
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -499,6 +713,25 @@ spec:
   selector:
     app.kubernetes.io/name: test-kubemetrics
     control-plane: controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: state-metrics
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-state-metrics-service
+  namespace: test-kubemetrics-system
+spec:
+  ports:
+  - name: http-metrics
+    port: 8080
+    protocol: TCP
+    targetPort: http-metrics
+  selector:
+    app.kubernetes.io/component: state-metrics
+    app.kubernetes.io/name: test-kubemetrics
 ---
 apiVersion: v1
 kind: Service
@@ -545,6 +778,7 @@ spec:
         - --metrics-bind-address=:8443
         - --leader-elect
         - --health-probe-bind-address=:8081
+        - --metrics-cert-path=/tmp/k8s-metrics-server/metrics-certs
         - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
         - --webhook-port=9443
         command:
@@ -584,6 +818,9 @@ spec:
             - ALL
           readOnlyRootFilesystem: true
         volumeMounts:
+        - mountPath: /tmp/k8s-metrics-server/metrics-certs
+          name: metrics-certs
+          readOnly: true
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: webhook-certs
           readOnly: true
@@ -594,9 +831,96 @@ spec:
       serviceAccountName: test-kubemetrics-controller-manager
       terminationGracePeriodSeconds: 10
       volumes:
+      - name: metrics-certs
+        secret:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: tls.key
+          optional: false
+          secretName: metrics-server-cert
       - name: webhook-certs
         secret:
           secretName: webhook-server-cert
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: state-metrics
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-state-metrics
+  namespace: test-kubemetrics-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: state-metrics
+      app.kubernetes.io/name: test-kubemetrics
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: state-metrics
+        app.kubernetes.io/name: test-kubemetrics
+    spec:
+      containers:
+      - args:
+        - --custom-resource-state-only=true
+        - --custom-resource-state-config-file=/etc/state-metrics/metrics.yaml
+        - --port=8080
+        - --telemetry-port=8081
+        image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: http-metrics
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        name: kube-state-metrics
+        ports:
+        - containerPort: 8080
+          name: http-metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: telemetry
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: telemetry
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: 250m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /etc/state-metrics
+          name: config
+          readOnly: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: test-kubemetrics-state-metrics
+      volumes:
+      - configMap:
+          name: test-kubemetrics-state-metrics-config-dfftfmd79c
+        name: config
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -608,8 +932,8 @@ metadata:
   namespace: test-kubemetrics-system
 spec:
   dnsNames:
-  - SERVICE_NAME.SERVICE_NAMESPACE.svc
-  - SERVICE_NAME.SERVICE_NAMESPACE.svc.cluster.local
+  - test-kubemetrics-controller-manager-metrics-service.test-kubemetrics-system.svc
+  - test-kubemetrics-controller-manager-metrics-service.test-kubemetrics-system.svc.cluster.local
   issuerRef:
     kind: Issuer
     name: test-kubemetrics-selfsigned-issuer
@@ -642,6 +966,104 @@ metadata:
   namespace: test-kubemetrics-system
 spec:
   selfSigned: {}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+    control-plane: controller-manager
+  name: test-kubemetrics-controller-manager-metrics-monitor
+  namespace: test-kubemetrics-system
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    path: /metrics
+    port: https
+    scheme: https
+    tlsConfig:
+      ca:
+        secret:
+          key: ca.crt
+          name: metrics-server-cert
+      cert:
+        secret:
+          key: tls.crt
+          name: metrics-server-cert
+      insecureSkipVerify: false
+      keySecret:
+        key: tls.key
+        name: metrics-server-cert
+      serverName: test-kubemetrics-controller-manager-metrics-service.test-kubemetrics-system.svc
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: test-kubemetrics
+      control-plane: controller-manager
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/component: state-metrics
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-state-metrics-monitor
+  namespace: test-kubemetrics-system
+spec:
+  endpoints:
+  - honorLabels: true
+    path: /metrics
+    port: http-metrics
+    scheme: http
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: state-metrics
+      app.kubernetes.io/name: test-kubemetrics
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-allow-metrics-traffic
+  namespace: test-kubemetrics-system
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          metrics: enabled
+    ports:
+    - port: 8443
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: test-kubemetrics
+      control-plane: controller-manager
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: test-kubemetrics
+  name: test-kubemetrics-allow-webhook-traffic
+  namespace: test-kubemetrics-system
+spec:
+  ingress:
+  - ports:
+    - port: 9443
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: test-kubemetrics
+      control-plane: controller-manager
+  policyTypes:
+  - Ingress
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration

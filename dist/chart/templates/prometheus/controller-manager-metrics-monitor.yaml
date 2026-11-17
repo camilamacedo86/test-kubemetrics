@@ -33,15 +33,16 @@ spec:
       {{- if .Values.certManager.enabled }}
       ca:
         secret:
-          name: metrics-server-cert
           key: ca.crt
+          name: metrics-server-cert
       cert:
         secret:
-          name: metrics-server-cert
           key: tls.crt
+          name: metrics-server-cert
       keySecret:
-        name: metrics-server-cert
         key: tls.key
+        name: metrics-server-cert
+      insecureSkipVerify: false
       {{- else }}
       insecureSkipVerify: true
       {{- end }}

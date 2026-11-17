@@ -1,0 +1,17 @@
+# ADD:TO MAKE WORK - not scaffolded by Kubebuilder, see kustomization.yaml.
+# Binds the generated ClusterRole (bases/rbac.yaml) to kube-state-metrics.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: test-kubemetrics
+    app.kubernetes.io/managed-by: kustomize
+  name: state-metrics-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: state-metrics-role
+subjects:
+- kind: ServiceAccount
+  name: state-metrics
+  namespace: system

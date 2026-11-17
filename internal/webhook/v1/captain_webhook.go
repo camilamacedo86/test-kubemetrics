@@ -18,6 +18,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -25,6 +26,26 @@ import (
 
 	crewv1 "github.com/camilamacedo86/test-kubemetrics/api/v1"
 )
+
+// ADD:TO MAKE WORK - implementation of the defaulting and validation of the webhooks scaffolded by
+// "kubebuilder create webhook". The log messages have the version added, which the e2e tests use to verify
+// that the webhooks of each version are called.
+const (
+	// DefaultReplicas is the number of replicas set by the defaulting webhook.
+	DefaultReplicas int32 = 1
+	// DefaultRank is the rank set by the defaulting webhook.
+	DefaultRank = "Commander"
+	// MaxReplicas is the maximum number of replicas accepted by the validating webhook.
+	MaxReplicas int32 = 5
+)
+
+// validateCaptain holds the validation shared by create and update.
+func validateCaptain(obj *crewv1.Captain) error {
+	if obj.Spec.Replicas != nil && (*obj.Spec.Replicas < 0 || *obj.Spec.Replicas > MaxReplicas) {
+		return fmt.Errorf("spec.replicas must be between 0 and %d, got %d", MaxReplicas, *obj.Spec.Replicas)
+	}
+	return nil
+}
 
 // nolint:unused
 // log is for logging in this package.
@@ -53,9 +74,14 @@ type CaptainDefaulter struct {
 
 // Default implements admission.Defaulter so a webhook will be registered for the Kind Captain.
 func (d *CaptainDefaulter) Default(_ context.Context, obj *crewv1.Captain) error {
-	captainlog.Info("Defaulting for Captain", "name", obj.GetName())
+	captainlog.Info("Defaulting for Captain", "name", obj.GetName(), "version", "v1")
 
-	// TODO(user): fill in your defaulting logic.
+	if obj.Spec.Replicas == nil {
+		obj.Spec.Replicas = new(DefaultReplicas)
+	}
+	if obj.Spec.Rank == "" {
+		obj.Spec.Rank = DefaultRank
+	}
 
 	return nil
 }
@@ -75,20 +101,16 @@ type CaptainValidator struct {
 
 // ValidateCreate implements admission.Validator so a webhook will be registered for the type Captain.
 func (v *CaptainValidator) ValidateCreate(_ context.Context, obj *crewv1.Captain) (admission.Warnings, error) {
-	captainlog.Info("Validation for Captain upon creation", "name", obj.GetName())
+	captainlog.Info("Validation for Captain upon creation", "name", obj.GetName(), "version", "v1")
 
-	// TODO(user): fill in your validation logic upon object creation.
-
-	return nil, nil
+	return nil, validateCaptain(obj)
 }
 
 // ValidateUpdate implements admission.Validator so a webhook will be registered for the type Captain.
 func (v *CaptainValidator) ValidateUpdate(_ context.Context, oldObj, newObj *crewv1.Captain) (admission.Warnings, error) {
 	captainlog.Info("Validation for Captain upon update", "name", newObj.GetName())
 
-	// TODO(user): fill in your validation logic upon object update.
-
-	return nil, nil
+	return nil, validateCaptain(newObj)
 }
 
 // ValidateDelete implements admission.Validator so a webhook will be registered for the type Captain.

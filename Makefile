@@ -43,9 +43,13 @@ help: ## Display this help.
 
 ##@ Development
 
+# ADD:TO MAKE WORK - the second controller-gen call of the manifests target generates the kube-state-metrics
+# configuration (metrics.yaml) and the ClusterRole (rbac.yaml) from the "+k8s:controller-gen:metrics" markers
+# into config/state-metrics/bases.
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole, CustomResourceDefinition and state metrics configuration objects.
 	"$(CONTROLLER_GEN)" rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	"$(CONTROLLER_GEN)" state-metrics-config:experimental=true,target=$(STATE_METRICS_TARGET),roleName=state-metrics-role paths="./..." output:state-metrics-config:dir=config/state-metrics/bases
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -85,6 +89,16 @@ setup-test-e2e: kind ## Set up a Kind cluster for e2e tests if it does not exist
 test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
 	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v
 	$(MAKE) cleanup-test-e2e
+
+# ADD:TO MAKE WORK - this target is not scaffolded by Kubebuilder. The chart is generated with all the
+# options of the kustomize scaffold enabled and then fixed, see hack/helm-chart-fixups.sh.
+.PHONY: helm-chart
+helm-chart: manifests generate kustomize ## Regenerate the Helm chart (dist/chart) with all options enabled. Requires kubebuilder.
+	@command -v kubebuilder >/dev/null || { echo "kubebuilder is required to generate the Helm chart"; exit 1; }
+	hack/all-options.sh enable
+	rm -rf $(HELM_CHART_DIR)/templates
+	rc=0; kubebuilder edit --plugins=helm.kubebuilder.io/v2-alpha || rc=$$?; hack/all-options.sh restore; exit $$rc
+	hack/helm-chart-fixups.sh
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: kind ## Tear down the Kind cluster used for e2e tests
@@ -192,6 +206,16 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.23.0
+# ADD:TO MAKE WORK - The state-metrics-config generator is not released yet. controller-gen is therefore built from the
+# pull request https://github.com/kubernetes-sigs/controller-tools/pull/1043 at the commit below.
+# Set CONTROLLER_TOOLS_DIR to a local checkout of controller-tools to build from it instead.
+CONTROLLER_TOOLS_REPO ?= https://github.com/kubernetes-sigs/controller-tools.git
+CONTROLLER_TOOLS_PR ?= 1043
+CONTROLLER_TOOLS_COMMIT ?= 461cc2474d75763a4072eb9361c8acccf98d4751
+CONTROLLER_TOOLS_DIR ?=
+# STATE_METRICS_TARGET is the target the state metrics configuration is generated for.
+# config/state-metrics deploys kube-state-metrics, which is the only target wired up in this project.
+STATE_METRICS_TARGET ?= kube-state-metrics
 
 #ENVTEST_VERSION is the controller-runtime version to use for setup-envtest, derived from go.mod
 ENVTEST_VERSION ?= $(shell v='$(call gomodver,sigs.k8s.io/controller-runtime)'; \
@@ -211,9 +235,28 @@ $(KUSTOMIZE): $(LOCALBIN)
 	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5,$(KUSTOMIZE_VERSION))
 
 .PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
+controller-gen: ## Build controller-gen locally if necessary.
+# ADD:TO MAKE WORK - the scaffold installs a released version with go-install-tool:
+#	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
+# "go install sigs.k8s.io/controller-tools/cmd/controller-gen@<commit>" can't resolve the commit of a pull
+# request, so the commit is fetched with git and built from source. The binary is kept per commit. With
+# CONTROLLER_TOOLS_DIR it is always rebuilt from the local checkout.
+CONTROLLER_GEN_BUILD = $(CONTROLLER_GEN)-$(if $(CONTROLLER_TOOLS_DIR),local,$(CONTROLLER_TOOLS_COMMIT))
+controller-gen: $(LOCALBIN)
+	@if [ -n "$(CONTROLLER_TOOLS_DIR)" ] || [ ! -f "$(CONTROLLER_GEN_BUILD)" ]; then \
+	set -e; \
+	src="$(CONTROLLER_TOOLS_DIR)"; \
+	if [ -z "$$src" ]; then \
+		src="$$(mktemp -d)"; trap 'rm -rf "$$src"' EXIT; \
+		git -C "$$src" init -q; \
+		echo "Fetching controller-tools PR #$(CONTROLLER_TOOLS_PR) ($(CONTROLLER_TOOLS_COMMIT))"; \
+		git -C "$$src" fetch -q --depth 1 "$(CONTROLLER_TOOLS_REPO)" "$(CONTROLLER_TOOLS_COMMIT)"; \
+		git -C "$$src" checkout -q FETCH_HEAD; \
+	fi; \
+	echo "Building controller-gen from $$src"; \
+	(cd "$$src" && go build -o "$(CONTROLLER_GEN_BUILD)" ./cmd/controller-gen); \
+	fi
+	@ln -sf "$$(basename "$(CONTROLLER_GEN_BUILD)")" "$(CONTROLLER_GEN)"
 
 .PHONY: setup-envtest
 setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.

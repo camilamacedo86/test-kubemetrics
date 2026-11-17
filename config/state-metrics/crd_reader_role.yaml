@@ -1,0 +1,18 @@
+# ADD:TO MAKE WORK - not scaffolded by Kubebuilder, see kustomization.yaml.
+# kube-state-metrics discovers the custom resources by watching the CustomResourceDefinitions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: test-kubemetrics
+    app.kubernetes.io/managed-by: kustomize
+  name: state-metrics-crd-reader-role
+rules:
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
