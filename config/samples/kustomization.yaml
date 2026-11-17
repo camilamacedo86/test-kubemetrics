@@ -1,0 +1,5 @@
+## Append samples of your project ##
+resources:
+- crew_v1_captain.yaml
+- crew_v2_captain.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
